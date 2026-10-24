@@ -23,7 +23,7 @@ Qt 测试使用 offscreen 平台，网络与归档界面流程使用模拟响应
 
 ## 真实使用边界
 
-macOS Apple Silicon 打包应用已实际启动，通过原生界面点击取得了腾讯返回的真实二维码，并验证取消登录后界面恢复可操作。`codesign --verify --deep --strict` 本地签名检查通过。
+macOS Apple Silicon 打包应用（含改名后的 QZoneCapsule.app）已实际启动，通过原生界面点击取得了腾讯返回的真实二维码，并验证取消登录后界面恢复可操作。`codesign --verify --deep --strict` 本地签名检查通过。
 
 尚未使用手机确认真实账号登录，也未完成导出完整性验收。需要用户本人用手机确认扫码，再用小相册和少量说说核对文本、条目、图片和时间。
 
