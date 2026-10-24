@@ -1,0 +1,55 @@
+[project]
+name = "qzonecapsule"
+version = "0.2.0"
+description = "QZoneCapsule / 扣扣时光：QQ 空间说说与相册本地归档桌面工具"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "MoYu" }]
+keywords = ["qzone", "qq", "backup", "archive", "exif", "photo"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "httpx>=0.27",
+    "typer>=0.12",
+    "rich>=13.7",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+desktop = ["PySide6-Essentials>=6.8,<7"]
+qrcode = ["qrcode[pil]>=7.4"]
+exif = ["piexif>=1.1.3"]
+dev = ["pytest>=8", "respx>=0.21", "ruff>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/MoYu2008Fish/QZoneCapsule"
+Repository = "https://github.com/MoYu2008Fish/QZoneCapsule"
+Issues = "https://github.com/MoYu2008Fish/QZoneCapsule/issues"
+
+[project.scripts]
+qzonecapsule = "qzone_archiver.desktop:main"
+qzonecapsule-cli = "qzone_archiver.cli:app"
+qzone = "qzone_archiver.cli:app"
+qzone-desktop = "qzone_archiver.desktop:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qzone_archiver"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+# B008：typer 的 Option/Argument 必须写在函数默认值里；PYI034：上下文管理器返回 self。
+ignore = ["B008", "PYI034"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

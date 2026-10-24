@@ -1,0 +1,42 @@
+# 运行产物
+/data/
+/backup/
+*.db
+*.db-shm
+*.db-wal
+qrcode.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# 系统与编辑器
+.DS_Store
+.idea/
+.vscode/
+
+# Desktop build output
+/release/
+/packaging/*.spec
+/packaging/notices/
+
+# Local credentials, archives and developer overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+session.json
+*.part
+last-run.json
+/data.js
+/archive/
+/archives/
+/packaging/*.iconset/

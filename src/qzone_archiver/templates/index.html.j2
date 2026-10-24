@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ nickname }} · QQ 空间存档</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #13171c;
+    --panel-2: #181d24;
+    --line: #262d36;
+    --text: #e7ebf0;
+    --muted: #8b95a3;
+    --accent: #7aa2f7;
+    --accent-2: #e0a46e;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(122,162,247,.10), transparent 60%),
+      radial-gradient(900px 500px at 95% 0%, rgba(224,164,110,.08), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    backdrop-filter: blur(18px);
+    background: rgba(11,13,16,.72);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar {
+    max-width: 1180px; margin: 0 auto; padding: 18px 24px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+  .brand h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .2px; }
+  .brand span { color: var(--muted); font-size: 12px; }
+  .stats { display: flex; gap: 16px; color: var(--muted); font-size: 12px; }
+  .stats b { color: var(--text); font-weight: 600; }
+  .search {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 10px; padding: 9px 13px; width: 220px; outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(122,162,247,.12); }
+  .search::placeholder { color: #5f6875; }
+
+  .tabs {
+    max-width: 1180px; margin: 0 auto; padding: 0 24px 16px;
+    display: flex; gap: 8px;
+  }
+  .tab {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    padding: 7px 16px; border-radius: 999px; cursor: pointer; font-size: 13px;
+    transition: all .2s;
+  }
+  .tab:hover { color: var(--text); border-color: #3a434f; }
+  .tab.active {
+    color: #0b0d10; background: var(--accent); border-color: var(--accent); font-weight: 600;
+  }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 8px 24px 80px; }
+  section { display: none; }
+  section.active { display: block; animation: fade .35s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .month {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 34px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .month h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+  .month span { color: var(--muted); font-size: 12px; }
+
+  .grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .tile {
+    position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--line); cursor: zoom-in;
+  }
+  .tile img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .3s;
+  }
+  .tile:hover img { transform: scale(1.045); }
+  .tile .meta {
+    position: absolute; inset: auto 0 0 0; padding: 22px 10px 8px;
+    background: linear-gradient(transparent, rgba(0,0,0,.72));
+    font-size: 11px; color: #cfd6df; opacity: 0; transition: opacity .25s;
+  }
+  .tile:hover .meta { opacity: 1; }
+  .tile .missing {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: #5f6875; font-size: 12px;
+  }
+  .badge {
+    position: absolute; top: 8px; left: 8px; padding: 2px 7px; border-radius: 999px;
+    background: rgba(11,13,16,.72); border: 1px solid rgba(255,255,255,.12);
+    font-size: 10px; color: #cfd6df; letter-spacing: .3px;
+  }
+  .badge.video { color: var(--accent-2); }
+
+  .album-grid {
+    display: grid; gap: 16px; margin-top: 22px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .album {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer; transition: transform .25s, border-color .25s;
+  }
+  .album:hover { transform: translateY(-3px); border-color: #37414d; }
+  .album .cover { aspect-ratio: 4/3; background: var(--panel-2); overflow: hidden; }
+  .album .cover img { width: 100%; height: 100%; object-fit: cover; }
+  .album .body { padding: 12px 14px 14px; }
+  .album .body h3 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .album .body p { margin: 0; color: var(--muted); font-size: 12px; }
+
+  .mood {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .mood .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .mood .time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mood .loc { color: var(--accent-2); font-size: 11px; }
+  .mood .content { white-space: pre-wrap; word-break: break-word; }
+  .mood .imgs {
+    display: grid; gap: 6px; margin-top: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    max-width: 640px;
+  }
+  .mood .imgs img {
+    width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: zoom-in;
+  }
+  .mood .foot { margin-top: 10px; color: var(--muted); font-size: 12px; display: flex; gap: 14px; }
+
+  .empty { color: var(--muted); text-align: center; padding: 80px 0; }
+
+  #lightbox {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    background: rgba(5,6,8,.94); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center; padding: 4vw;
+    cursor: zoom-out;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  #lightbox .caption {
+    position: absolute; bottom: 18px; left: 0; right: 0; text-align: center;
+    color: #9aa4b2; font-size: 12px;
+  }
+  footer {
+    max-width: 1180px; margin: 0 auto; padding: 0 24px 40px;
+    color: #5f6875; font-size: 12px;
+  }
+  @media (max-width: 640px) {
+    .bar { padding: 14px 16px; }
+    .search { width: 100%; }
+    main { padding: 4px 16px 60px; }
+    .tabs { padding: 0 16px 12px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <h1>{{ nickname }} 的空间存档</h1>
+      <span>QQ {{ uin }} · 导出于 {{ generated_at }}</span>
+    </div>
+    <div class="stats">
+      <span><b id="s-total">{{ stats.photos }}</b> 张照片</span>
+      <span><b>{{ stats.videos }}</b> 个视频</span>
+      <span><b>{{ stats.albums }}</b> 个相册</span>
+      <span><b>{{ stats.moods }}</b> 条说说</span>
+    </div>
+    <input class="search" id="search" placeholder="搜索相册、文件名、说说…">
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-view="timeline">时间轴</button>
+    <button class="tab" data-view="albums">相册</button>
+    <button class="tab" data-view="moods">说说</button>
+  </nav>
+</header>
+
+<main>
+  <section id="timeline" class="active"></section>
+  <section id="albums"></section>
+  <section id="moods"></section>
+</main>
+
+<footer>本页面由扣扣时光 · QZoneCapsule 生成，所有数据均来自本地备份，不发起任何网络请求。</footer>
+
+<div id="lightbox"><img alt=""><div class="caption"></div></div>
+
+<script src="data.js"></script>
+<script>
+(() => {
+  const DATA = window.__QZONE_DATA__ || { photos: [], albums: [], moods: [] };
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+
+  function mediaTile(item) {
+    const label = item.name || item.sloc || "";
+    const badge = item.is_video ? '<span class="badge video">VIDEO</span>' : "";
+    if (!item.path) {
+      return `<div class="tile">${badge}<div class="missing">未下载</div>
+        <div class="meta">${esc(label)}</div></div>`;
+    }
+    return `<div class="tile" data-src="${esc(item.path)}" data-cap="${esc(label)}">
+      ${badge}
+      <img loading="lazy" src="${esc(item.path)}" alt="${esc(label)}"
+           onerror="this.style.opacity=0">
+      <div class="meta">${esc(item.time || "")}</div>
+    </div>`;
+  }
+
+  function renderTimeline(filter = "") {
+    const groups = new Map();
+    for (const p of DATA.photos) {
+      if (filter && !(`${p.name} ${p.sloc} ${p.time}`.toLowerCase().includes(filter))) continue;
+      const key = (p.time || "未知时间").slice(0, 7);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(p);
+    }
+    const keys = [...groups.keys()].sort().reverse();
+    if (!keys.length) {
+      $("#timeline").innerHTML = '<div class="empty">没有匹配的照片</div>';
+      return;
+    }
+    $("#timeline").innerHTML = keys.map((key) => {
+      const list = groups.get(key);
+      const [y, m] = key.split("-");
+      const title = m ? `${y} 年 ${Number(m)} 月` : "未知时间";
+      return `<div class="month"><h2>${title}</h2><span>${list.length} 张</span></div>
+        <div class="grid">${list.map(mediaTile).join("")}</div>`;
+    }).join("");
+  }
+
+  function renderAlbums(filter = "") {
+    const albums = DATA.albums.filter((a) => {
+      if (!filter) return true;
+      return `${a.name} ${a.desc}`.toLowerCase().includes(filter);
+    });
+    if (!albums.length) {
+      $("#albums").innerHTML = '<div class="empty">没有匹配的相册</div>';
+      return;
+    }
+    $("#albums").innerHTML = `<div class="album-grid">${albums.map((a) => `
+      <article class="album" data-album="${esc(a.id)}">
+        <div class="cover">${a.photos[0]?.path
+          ? `<img loading="lazy" src="${esc(a.photos[0].path)}" alt="">` : ""}</div>
+        <div class="body">
+          <h3>${esc(a.name)}</h3>
+          <p>${a.photos.length} 张 · ${esc((a.last_upload_at || a.created_at || "").slice(0, 10))}</p>
+        </div>
+      </article>`).join("")}</div>`;
+  }
+
+  function renderMoods(filter = "") {
+    const moods = DATA.moods.filter((m) => {
+      if (!filter) return true;
+      return `${m.content} ${m.location}`.toLowerCase().includes(filter);
+    });
+    if (!moods.length) {
+      $("#moods").innerHTML = '<div class="empty">没有匹配的说说</div>';
+      return;
+    }
+    $("#moods").innerHTML = moods.map((m) => {
+      const imgs = (m.media || []).filter((x) => x.path)
+        .map((x) => `<img loading="lazy" src="${esc(x.path)}" alt="" data-src="${esc(x.path)}">`)
+        .join("");
+      return `<article class="mood">
+        <div class="head">
+          <span class="time">${esc(m.time || "")}</span>
+          ${m.location ? `<span class="loc">${esc(m.location)}</span>` : ""}
+        </div>
+        <div class="content">${esc(m.content)}</div>
+        ${imgs ? `<div class="imgs">${imgs}</div>` : ""}
+        <div class="foot">
+          <span>赞 ${m.like_count}</span><span>评论 ${m.comment_count}</span>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function show(view, filter = "") {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+    document.querySelectorAll("section").forEach((s) => s.classList.toggle("active", s.id === view));
+    if (view === "timeline") renderTimeline(filter);
+    if (view === "albums") renderAlbums(filter);
+    if (view === "moods") renderMoods(filter);
+  }
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => show(tab.dataset.view, $("#search").value.trim().toLowerCase()));
+  });
+
+  let timer;
+  $("#search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const active = document.querySelector(".tab.active").dataset.view;
+      show(active, e.target.value.trim().toLowerCase());
+    }, 160);
+  });
+
+  document.addEventListener("click", (e) => {
+    const album = e.target.closest(".album");
+    if (album) {
+      const item = DATA.albums.find((a) => a.id === album.dataset.album);
+      if (item) {
+        const photos = item.photos;
+        $("#albums").innerHTML = `
+          <div class="month"><h2>${esc(item.name)}</h2>
+            <span>${photos.length} 张</span>
+            <button class="tab" id="back-albums" style="margin-left:auto">返回相册</button>
+          </div>
+          <div class="grid">${photos.map(mediaTile).join("")}</div>`;
+        $("#back-albums").addEventListener("click", () => renderAlbums());
+      }
+      return;
+    }
+
+    const tile = e.target.closest("[data-src]");
+    if (tile) {
+      const box = $("#lightbox");
+      box.querySelector("img").src = tile.dataset.src;
+      box.querySelector(".caption").textContent = tile.dataset.cap || "";
+      box.classList.add("open");
+    }
+  });
+
+  $("#lightbox").addEventListener("click", () => $("#lightbox").classList.remove("open"));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("#lightbox").classList.remove("open");
+  });
+
+  show("timeline");
+})();
+</script>
+</body>
+</html>
