@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import Event
 
-from .client import QzoneClient
+from .client import QzoneClient, QzoneError
 from .collectors import fetch_albums, fetch_moods, fetch_photos
 from .exporter import export_bundle
 from .media import DownloadCancelled, DownloadError, MediaDownloader, apply_time
@@ -29,6 +29,7 @@ class SyncOptions:
     album_ids: set[str] | None = None
     limit: int = 0
     interval: float = 0.8
+    merge_accounts: bool = False
 
 
 @dataclass
@@ -75,13 +76,20 @@ def run_sync(
         report.issues.append({"kind": kind, "id": identity, "reason": reason})
         notify(f"{reason}，已保留记录，可重新导出补下载")
 
+    def photos_for(album_id: str):
+        try:
+            yield from fetch_photos(client, uin, album_id)
+        except QzoneError:
+            check()
+            issue("album_photos", album_id, "此相册照片读取失败，继续归档其他相册和说说")
+
     with (
         Store(out / "qzone.db") as store,
         QzoneClient(session["cookie"], uin=uin, interval=options.interval, cancel=cancel) as client,
         MediaDownloader(out, cancel=cancel) as downloader,
     ):
         accounts = store.db.execute("SELECT uin FROM accounts").fetchall()
-        if any(row["uin"] != uin for row in accounts):
+        if not options.merge_accounts and any(row["uin"] != uin for row in accounts):
             raise ValueError("此文件夹已有其他账号的存档，请另选文件夹")
         store.upsert_account(uin, session.get("nickname", ""))
         try:
@@ -97,7 +105,7 @@ def run_sync(
                     store.upsert_album(uin, album, cover=album.get("cover", ""))
                     report.albums += 1
                     notify(f"正在归档相册：{album['name']}")
-                    for photo in fetch_photos(client, uin, album["id"]):
+                    for photo in photos_for(album["id"]):
                         check()
                         existing = store.photo_exists(uin, album["id"], photo["sloc"])
                         has_file = bool(existing and _has_file(out, existing["local_path"]))
@@ -204,10 +212,16 @@ def run_sync(
         finally:
             if report.state == "complete" and report.failed:
                 report.state = "partial"
-            report.index = str(export_bundle(store, uin, out, session.get("nickname", "")))
+            report.index = str(
+                export_bundle(store, uin, out, session.get("nickname", ""), merged=options.merge_accounts)
+            )
             (out / "last-run.json").write_text(
                 json.dumps(asdict(report), ensure_ascii=False, indent=2), encoding="utf-8"
             )
+            if options.merge_accounts:
+                (out / f"last-run-{uin}.json").write_text(
+                    json.dumps(asdict(report), ensure_ascii=False, indent=2), encoding="utf-8"
+                )
     notify(
         {
             "complete": "导出完成",

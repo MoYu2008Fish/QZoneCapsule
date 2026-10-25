@@ -7,5 +7,5 @@ cd -- "${0:A:h:h}"
   --add-data "$PWD/src/qzone_archiver/templates:qzone_archiver/templates" \
   --add-data "$PWD/LICENSE:notices" \
   --add-data "$PWD/packaging/notices:notices" \
-  --distpath release/0.2.0 --workpath build/desktop --specpath packaging \
+  --distpath release/0.3.1 --workpath build/desktop --specpath packaging \
   packaging/desktop_entry.py

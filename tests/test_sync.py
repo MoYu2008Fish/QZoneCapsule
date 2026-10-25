@@ -112,3 +112,60 @@ def test_other_account_rejected(tmp_path):
         store.upsert_account("456")
     with pytest.raises(ValueError):
         sync.run_sync(SESSION, sync.SyncOptions(tmp_path))
+
+
+def test_bad_album_keeps_progress_and_continues_other_sources(tmp_path, monkeypatch, sources):
+    from qzone_archiver.client import QzoneError
+
+    visited = []
+
+    def photos(_client, _uin, album_id):
+        visited.append(album_id)
+        if album_id == "a":
+            yield sources[0]
+            raise QzoneError("response contains private data")
+
+    monkeypatch.setattr(sync, "fetch_photos", photos)
+    report = sync.run_sync(SESSION, sync.SyncOptions(tmp_path, media=False))
+    assert visited == ["a", "b"]
+    assert report.state == "partial"
+    assert (report.albums, report.photos, report.moods) == (2, 1, 1)
+    assert report.issues[0]["kind"] == "album_photos"
+    assert "response contains private data" not in (tmp_path / "last-run.json").read_text()
+    with Store(tmp_path / "qzone.db") as store:
+        assert len(list(store.iter_photos("123"))) == 1
+
+
+def test_cancel_during_album_failure_is_cancelled(tmp_path, monkeypatch, sources):
+    from qzone_archiver.client import QzoneError
+
+    cancel = Event()
+
+    def photos(*_):
+        cancel.set()
+        raise QzoneError("stopped")
+
+    monkeypatch.setattr(sync, "fetch_photos", photos)
+    report = sync.run_sync(SESSION, sync.SyncOptions(tmp_path), cancel=cancel)
+    assert report.state == "cancelled"
+    assert not report.issues
+
+
+def test_merged_export_preserves_accounts_and_colliding_ids(tmp_path, sources):
+    import json
+
+    options = sync.SyncOptions(tmp_path, media=False, merge_accounts=True)
+    sync.run_sync(SESSION, options)
+    second = sync.run_sync({"uin": "456", "cookie": "p_uin=o456; p_skey=test"}, options)
+    assert second.state == "complete"
+    with Store(tmp_path / "qzone.db", readonly=True) as store:
+        assert store.stats("123")["photos"] == store.stats("456")["photos"] == 1
+        assert store.stats("123")["moods"] == store.stats("456")["moods"] == 1
+    text = (tmp_path / "data.js").read_text()
+    data = json.loads(text.removeprefix("window.__QZONE_DATA__ = ").removesuffix(";"))
+    assert len(data["albums"]) == 4
+    assert {p["album_id"] for p in data["photos"]} == {"123:a", "456:a"}
+    assert {m["uin"] for m in data["moods"]} == {"123", "456"}
+    assert {a["uin"] for a in data["accounts"]} == {"123", "456"}
+    assert (tmp_path / "last-run-123.json").is_file()
+    assert (tmp_path / "last-run-456.json").is_file()

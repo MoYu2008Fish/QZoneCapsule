@@ -40,3 +40,17 @@ last-run.json
 /archive/
 /archives/
 /packaging/*.iconset/
+
+# Additional private archive/session output (never distribute)
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.log
+*.before-*
+last-run-*.json
+session-*.json
+cookies*.txt
+cookies*.json
+qrcode*.png
+data.js

@@ -6,7 +6,7 @@
 
 A Python / PySide6 desktop archive tool: scan a QQ login code, select posts and albums, export to your computer, and browse the archive offline.
 
-> **0.2.0 preview:** the macOS application, live QR-code retrieval, and login cancellation have been checked. Phone-confirmed login and real-account export completeness have **not** been verified. Test a small album first.
+> **0.3.1 preview:** the macOS application, live QR-code retrieval, and login cancellation have been checked. Local album metadata export has also been checked. Full media download and mood completeness still need acceptance testing. Test a small album first.
 
 ![Desktop interface in Chinese](docs/images/desktop.png)
 
@@ -18,12 +18,14 @@ A Python / PySide6 desktop archive tool: scan a QQ login code, select posts and 
 - Preserve available timestamps; optionally fill missing EXIF dates using external ExifTool.
 - Run jobs in the background, stop safely between requests, and retry missing files by exporting again.
 - Keep SQLite records, an offline HTML viewer, and a `last-run.json` result report.
+- Browse exported posts, albums and local photos inside the app, with search, account filters and image preview. No login is needed for local browsing.
+- Export into separate account folders or a shared archive. View accounts separately or combine their timelines while retaining ownership and keeping account identities distinct.
 
 The desktop interface is currently in Chinese.
 
 ## Install
 
-For Apple Silicon Macs, download `QZoneCapsule-0.2.0-macos-arm64.zip` from [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases), extract it and open `QZoneCapsule.app`. The app is locally ad-hoc signed, without Apple Developer ID signing or notarization. Other platforms do not yet have verified binary packages.
+For Apple Silicon Macs, download `QZoneCapsule-0.3.1-macos-arm64.zip` from [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases), extract it and open `QZoneCapsule.app`. The app is locally ad-hoc signed, without Apple Developer ID signing or notarization. Other platforms do not yet have verified binary packages.
 
 From source (Python 3.10+ and a system supported by PySide6):
 
@@ -42,7 +44,7 @@ On Windows, activate with `.venv\Scripts\activate`. Windows/Linux compatibility 
 
 1. Click the QR login button and confirm in the QQ mobile app.
 2. Select posts, albums and image downloads; optionally load and select individual albums.
-3. Choose a destination and start exporting. The desktop app creates an account-number subfolder.
+3. Choose a destination and export mode: separate account folders, or a shared archive in `合并存档`. Log in to another account and use the same destination/mode to add it to the shared archive.
 4. Open the offline archive. Check `last-run.json` for incomplete items; exporting again retries missing files.
 
 Session data is kept locally at `~/.config/qzone-archiver/session.json`, retaining the prototype's directory for compatibility. Desktop QR images remain in memory. Logging out removes the saved session.

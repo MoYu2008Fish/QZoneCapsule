@@ -6,11 +6,12 @@ import sys
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QFont, QPixmap
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QTabWidget,
     QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
@@ -28,9 +30,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from . import __version__
 from .auth import load_session, login_with_qrcode, save_session, session_path
 from .client import QzoneClient
 from .collectors import fetch_albums
+from .library_ui import LibraryWidget
 from .sync import SyncOptions, run_sync
 
 STYLE = """
@@ -52,6 +56,16 @@ QPushButton#primary { background: #246b56; color: white; border: none; font-weig
 QPushButton#primary:hover { background: #195542; }
 QPushButton#primary:disabled { background: #a8c0b2; }
 QLineEdit { background: #f8faf7; border: 1px solid #dce5da; border-radius: 7px; padding: 10px; }
+QComboBox { background: #f8faf7; border: 1px solid #dce5da; border-radius: 7px;
+            padding: 8px 12px; min-height: 18px; }
+QComboBox QAbstractItemView { background: white; selection-background-color: #dcece2;
+                            selection-color: #153e39; }
+QListWidget { background: white; border: 1px solid #dce5da; border-radius: 8px; }
+QListWidget::item { padding: 10px; border-bottom: 1px solid #edf2ec; }
+QListWidget::item:selected { background: #dcece2; color: #153e39; border-radius: 5px; }
+QTabWidget::pane { border: none; background: #f4f6f3; }
+QTabBar::tab { background: #e8eee6; color: #5c7165; padding: 12px 24px; }
+QTabBar::tab:selected { background: #f4f6f3; color: #195542; font-weight: 650; }
 QCheckBox { spacing: 9px; padding: 5px 0; }
 QTreeWidget { border: 1px solid #e3e9df; border-radius: 8px; background: #fafcf8; }
 QTreeWidget::item { padding: 7px 3px; }
@@ -86,7 +100,9 @@ class Job(QThread):
                 save_session(result["cookie"], result.get("nickname", ""))
             elif self.kind == "albums":
                 result = []
-                with QzoneClient(self.session["cookie"], uin=self.session["uin"]) as client:
+                with QzoneClient(
+                    self.session["cookie"], uin=self.session["uin"], cancel=self.cancel
+                ) as client:
                     for album in fetch_albums(client, self.session["uin"]):
                         if self.cancel.is_set():
                             return
@@ -128,7 +144,7 @@ def button(text: str, handler, primary: bool = False) -> QPushButton:
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("扣扣时光 · QZoneCapsule")
+        self.setWindowTitle(f"扣扣时光 · QZoneCapsule {__version__}")
         self.resize(1100, 850)
         self.setMinimumSize(850, 650)
         self.session = load_session()
@@ -160,13 +176,18 @@ class Window(QMainWindow):
             label("说说 · 相册 · 时间\n\n数据保存在你的电脑上。\n每一份回忆，都值得留下。", wrap=True)
         )
         side.addSpacing(20)
-        side.addWidget(label("桌面预览版  0.2.0"))
+        side.addWidget(label(f"桌面预览版  {__version__}"))
         layout.addWidget(sidebar)
         right = QWidget()
         right_box = QVBoxLayout(right)
         right_box.setContentsMargins(0, 0, 0, 0)
         right_box.setSpacing(0)
-        layout.addWidget(right, 1)
+        self.pages = QTabWidget()
+        self.pages.addTab(right, "连接与导出")
+        self.library = LibraryWidget()
+        self.pages.addTab(self.library, "本地时光馆")
+        self.pages.currentChanged.connect(self.on_page_changed)
+        layout.addWidget(self.pages, 1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -216,13 +237,28 @@ class Window(QMainWindow):
         self.all_albums.toggled.connect(self.update_controls)
         target = self.card(body, "03 / 保存位置")
         row = QHBoxLayout()
-        self.path = QLineEdit(str(Path.home() / "Pictures" / "扣扣时光归档"))
+        self.path = QLineEdit(
+            self.library.settings.value(
+                "export_root", str(Path.home() / "Pictures" / "扣扣时光归档"), type=str
+            )
+        )
         self.path.setAccessibleName("备份根文件夹")
         row.addWidget(self.path, 1)
         self.browse_button = button("选择文件夹", self.browse)
         row.addWidget(self.browse_button)
         target.addLayout(row)
-        target.addWidget(label("会在此处按 QQ 号建立文件夹。重复导出会补下缺失文件。", "muted", True))
+        self.export_mode = QComboBox()
+        self.export_mode.addItem("分开保存 · 每个账号一个文件夹", False)
+        self.export_mode.addItem("合并保存 · 多个账号汇入同一存档", True)
+        target.addWidget(self.export_mode)
+        target.addWidget(
+            label(
+                "合并保存会写入「合并存档」文件夹，保留每条内容的所属账号；重复导出会补下缺失文件。"
+                "已有分开保存的内容也可在时光馆合并查看。",
+                "muted",
+                True,
+            )
+        )
         tasks = self.card(body, "导出任务")
         self.status = label("准备就绪 · 登录后即可开始", wrap=True)
         tasks.addWidget(self.status)
@@ -256,6 +292,7 @@ class Window(QMainWindow):
         body.addStretch()
         self.update_account()
         self.update_controls()
+        self.library.add_root(Path(self.path.text()), refresh=False)
 
     @staticmethod
     def card(body, title):
@@ -275,7 +312,15 @@ class Window(QMainWindow):
     def update_controls(self, *_):
         busy = self.job is not None
         logged = bool(self.session and self.session.get("cookie"))
-        for item in (self.login_button, self.path, self.browse_button, self.moods, self.albums, self.media):
+        for item in (
+            self.login_button,
+            self.path,
+            self.browse_button,
+            self.moods,
+            self.albums,
+            self.media,
+            self.export_mode,
+        ):
             item.setEnabled(not busy)
         self.forget_button.setEnabled(logged and not busy)
         self.load_button.setEnabled(logged and not busy and self.albums.isChecked())
@@ -368,9 +413,18 @@ class Window(QMainWindow):
         if not self.path.text().strip():
             self.on_error("请先选择保存文件夹。")
             return
-        out = Path(self.path.text()).expanduser() / self.session["uin"]
+        root = Path(self.path.text()).expanduser()
+        merged = self.export_mode.currentData()
+        out = root / ("合并存档" if merged else self.session["uin"])
+        self.library.settings.setValue("export_root", str(root))
+        self.library.add_root(root, refresh=False)
         options = SyncOptions(
-            out, self.albums.isChecked(), self.moods.isChecked(), self.media.isChecked(), ids
+            out,
+            self.albums.isChecked(),
+            self.moods.isChecked(),
+            self.media.isChecked(),
+            ids,
+            merge_accounts=merged,
         )
         self.log.clear()
         self.index = None
@@ -420,6 +474,7 @@ class Window(QMainWindow):
             self.status.setText(f"已读取 {len(result)} 个相册，可取消勾选不需要的相册")
         else:
             self.index = Path(result.index)
+            self.library.add_root(self.index.parent)
             self.open_button.setEnabled(self.index.is_file())
             self.status.setText(
                 {
@@ -454,14 +509,17 @@ class Window(QMainWindow):
             self.close()
 
     def open_archive(self):
-        if not self.index or not self.index.is_file():
-            filename, _ = QFileDialog.getOpenFileName(
-                self, "打开已有存档的 index.html", self.path.text(), "离线存档 (index.html)"
-            )
-            if not filename:
-                return
-            self.index = Path(filename)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.index)))
+        self.library.add_root(Path(self.path.text()), refresh=False)
+        if self.index and self.index.is_file():
+            self.library.add_root(self.index.parent, refresh=False)
+        if self.pages.currentIndex() == 1:
+            self.library.refresh()
+        else:
+            self.pages.setCurrentIndex(1)
+
+    def on_page_changed(self, index):
+        if index == 1:
+            self.library.refresh()
 
     def closeEvent(self, event):
         if self.job:
@@ -469,12 +527,14 @@ class Window(QMainWindow):
             self.stop()
             event.ignore()
         else:
+            self.library.wait_for_load()
             event.accept()
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("QZoneCapsule")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("QZoneCapsule")
     app.setFont(QFont("PingFang SC" if sys.platform == "darwin" else "Microsoft YaHei", 11))
     app.setStyle("Fusion")

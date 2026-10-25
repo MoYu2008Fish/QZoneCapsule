@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import time
 from threading import Event
 from typing import Any
 
 import httpx
+from json_repair import repair_json
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -51,13 +53,35 @@ def uin_from_cookie(cookies: dict[str, str]) -> str:
     return ""
 
 
-def parse_jsonp(text: str) -> dict[str, Any]:
+def parse_jsonp(text: str, *, repair: bool = False) -> dict[str, Any]:
     """剥离腾讯接口的 callback(...) 外壳并解析 JSON。"""
-    start = text.find("(")
-    end = text.rfind(")")
-    if start == -1 or end <= start:
-        raise QzoneError(f"不是合法的 JSONP 响应：{text[:120]}")
-    return json.loads(text[start + 1 : end])
+    text = text.lstrip("\ufeff \t\r\n")
+    if text.startswith("{"):
+        payload = text
+    else:
+        wrapper = re.fullmatch(r"[\w.$]+\s*\((.*)\)\s*;?\s*", text, re.DOTALL)
+        if not wrapper:
+            raise QzoneError("接口响应格式异常，请检查登录状态或稍后重试")
+        payload = wrapper[1].strip()
+    try:
+        # QQ photo CGI can put literal newlines/control characters inside strings.
+        data = json.loads(payload, strict=False)
+    except json.JSONDecodeError as exc:
+        # Only photo endpoints opt in. Never repair HTML, truncated responses or
+        # authentication shells into an apparently successful empty archive.
+        if not repair or not payload.startswith("{") or not payload.endswith("}"):
+            raise QzoneError("接口数据格式异常，未将其视为空相册") from exc
+        data = repair_json(payload, return_objects=True, skip_json_loads=True)
+        if (
+            not isinstance(data, dict)
+            or "code" not in data
+            or not isinstance(data.get("data"), dict)
+            or not any(isinstance(data["data"].get(k), list) for k in ("photoList", "albumList"))
+        ):
+            raise QzoneError("相册数据损坏，未将其视为空相册") from exc
+    if not isinstance(data, dict):
+        raise QzoneError("接口响应不是有效对象")
+    return data
 
 
 class QzoneClient:
@@ -153,7 +177,10 @@ class QzoneClient:
     ) -> dict[str, Any]:
         """请求 JSONP 接口并返回解析后的字典；code != 0 时抛出业务错误。"""
         resp = self.get(url, params)
-        data = parse_jsonp(resp.text)
+        data = parse_jsonp(
+            resp.text,
+            repair=url.endswith(("/cgi_list_photo", "/fcg_list_album_v3")),
+        )
         code = int(data.get("code", 0) or 0)
         if code != 0:
             message = data.get("message") or data.get("msg") or "未知错误"

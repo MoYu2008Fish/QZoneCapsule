@@ -1,4 +1,14 @@
-from qzone_archiver.client import calc_gtk, cookie_to_str, parse_cookie, parse_jsonp, uin_from_cookie
+import pytest
+
+from qzone_archiver.client import (
+    QzoneClient,
+    QzoneError,
+    calc_gtk,
+    cookie_to_str,
+    parse_cookie,
+    parse_jsonp,
+    uin_from_cookie,
+)
 
 
 def test_calc_gtk_is_stable():
@@ -25,3 +35,55 @@ def test_parse_jsonp():
         "code": 0,
         "data": {"x": 1},
     }
+
+
+def test_photo_control_characters_and_plain_json():
+    assert parse_jsonp('cb({"code":0,"data":{"desc":"第一行\n第二行\t尾部"}})')["data"]["desc"] == (
+        "第一行\n第二行\t尾部"
+    )
+    assert parse_jsonp('\ufeff {"code":0,"data":{}}')["code"] == 0
+
+
+def test_photo_broken_string_keeps_ids_and_media_urls():
+    payload = (
+        'cb({"code":0,"data":{"topic":{"name":"旧相册\\",\n'
+        '"desc":"说明"},"totalInAlbum":2,"photoList":['
+        '{"sloc":"p1","url":"https://example.com/1.jpg"},'
+        '{"sloc":"p2","url":"https://example.com/2.jpg"}]}});'
+    )
+    with pytest.raises(QzoneError):
+        parse_jsonp(payload)
+    data = parse_jsonp(payload, repair=True)["data"]
+    assert data["totalInAlbum"] == 2
+    assert [(p["sloc"], p["url"]) for p in data["photoList"]] == [
+        ("p1", "https://example.com/1.jpg"),
+        ("p2", "https://example.com/2.jpg"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "<html>secret cookie</html>",
+        'cb({"code":0,"data":{"photoList":[',
+        'cb({"code":0,"data":{"secret":"broken"quote"}})',
+    ],
+)
+def test_unrecoverable_responses_are_not_empty_success(payload):
+    with pytest.raises(QzoneError) as error:
+        parse_jsonp(payload, repair=True)
+    assert "secret" not in str(error.value)
+
+
+def test_repaired_photo_response_still_checks_business_error(respx_mock):
+    import httpx
+
+    url = "https://user.qzone.qq.com/proxy/domain/photo.qzone.qq.com/fcgi-bin/cgi_list_photo"
+    respx_mock.get(url).mock(
+        return_value=httpx.Response(200, text='cb({"code":-1,"message":"denied","data":{"photoList":[],}})')
+    )
+    with (
+        QzoneClient("p_uin=o123; p_skey=test", interval=0) as client,
+        pytest.raises(QzoneError, match="code=-1"),
+    ):
+        client.get_jsonp(url)

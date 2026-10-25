@@ -16,6 +16,7 @@ for name in (
     "idna",
     "h11",
     "jinja2",
+    "json-repair",
     "markupsafe",
     "typer",
     "click",

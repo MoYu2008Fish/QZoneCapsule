@@ -174,7 +174,7 @@
   <div class="bar">
     <div class="brand">
       <h1>{{ nickname }} 的空间存档</h1>
-      <span>QQ {{ uin }} · 导出于 {{ generated_at }}</span>
+      <span>{% if uin %}QQ {{ uin }}{% else %}保留账号来源 · 可按账号筛选{% endif %} · 导出于 {{ generated_at }}</span>
     </div>
     <div class="stats">
       <span><b id="s-total">{{ stats.photos }}</b> 张照片</span>
@@ -204,14 +204,15 @@
 <script src="data.js"></script>
 <script>
 (() => {
-  const DATA = window.__QZONE_DATA__ || { photos: [], albums: [], moods: [] };
+  const ALL_DATA = window.__QZONE_DATA__ || { photos: [], albums: [], moods: [] };
+  let DATA = ALL_DATA;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
 
   function mediaTile(item) {
-    const label = item.name || item.sloc || "";
+    const label = [item.name || item.sloc || "", item.desc || "", item.text_note || "", item.uin ? `QQ ${item.uin}` : ""].filter(Boolean).join(" · ");
     const badge = item.is_video ? '<span class="badge video">VIDEO</span>' : "";
     if (!item.path) {
       return `<div class="tile">${badge}<div class="missing">未下载</div>
@@ -221,7 +222,7 @@
       ${badge}
       <img loading="lazy" src="${esc(item.path)}" alt="${esc(label)}"
            onerror="this.style.opacity=0">
-      <div class="meta">${esc(item.time || "")}</div>
+      <div class="meta">${esc(item.time || "")} ${item.uin ? esc(`QQ ${item.uin}`) : ""}</div>
     </div>`;
   }
 
@@ -261,7 +262,7 @@
         <div class="cover">${a.photos[0]?.path
           ? `<img loading="lazy" src="${esc(a.photos[0].path)}" alt="">` : ""}</div>
         <div class="body">
-          <h3>${esc(a.name)}</h3>
+          <h3>${esc(a.name)}</h3>${a.uin ? `<p>QQ ${esc(a.uin)}</p>` : ""}
           <p>${a.photos.length} 张 · ${esc((a.last_upload_at || a.created_at || "").slice(0, 10))}</p>
         </div>
       </article>`).join("")}</div>`;
@@ -282,7 +283,7 @@
         .join("");
       return `<article class="mood">
         <div class="head">
-          <span class="time">${esc(m.time || "")}</span>
+          <span class="time">${esc(m.time || "")} ${m.uin ? esc(`QQ ${m.uin}`) : ""}</span>
           ${m.location ? `<span class="loc">${esc(m.location)}</span>` : ""}
         </div>
         <div class="content">${esc(m.content)}</div>
@@ -307,6 +308,26 @@
   });
 
   let timer;
+  if ((ALL_DATA.accounts || []).length) {
+    const select = document.createElement("select");
+    select.className = "search";
+    select.setAttribute("aria-label", "选择所属账号");
+    const all = new Option("合并查看全部账号", "");
+    select.add(all);
+    for (const account of ALL_DATA.accounts) {
+      select.add(new Option(`${account.nickname || "QQ"} · ${account.uin}`, account.uin));
+    }
+    $("#search").before(select);
+    select.addEventListener("change", () => {
+      DATA = select.value ? {
+        ...ALL_DATA,
+        photos: ALL_DATA.photos.filter(x => x.uin === select.value),
+        albums: ALL_DATA.albums.filter(x => x.uin === select.value),
+        moods: ALL_DATA.moods.filter(x => x.uin === select.value)
+      } : ALL_DATA;
+      show(document.querySelector(".tab.active").dataset.view, $("#search").value.trim().toLowerCase());
+    });
+  }
   $("#search").addEventListener("input", (e) => {
     clearTimeout(timer);
     timer = setTimeout(() => {
