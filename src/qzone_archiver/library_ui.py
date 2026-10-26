@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 from .emotions import emotion_description, plain_qq_text, qq_html
 from .feed_ui import FeedList, media_items
 from .library import local_media, read_library, read_run_issues
+from .theme import STYLE, TOKENS
 
 
 class LibraryLoad(QThread):
@@ -47,15 +48,35 @@ class LibraryLoad(QThread):
 
 
 class LocalBrowser(QTextBrowser):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.document().setDocumentMargin(14)
+        self.document().setDefaultStyleSheet(
+            f"body {{color:{TOKENS['text']};line-height:165%;}}"
+            f"h2, h3 {{color:{TOKENS['navy']};}}"
+            f"a {{color:{TOKENS['accent']};}}"
+            f"hr {{color:{TOKENS['line']};}}"
+            "p {margin-top:8px;margin-bottom:14px;}"
+        )
+
     def loadResource(self, resource_type, url):
         # Documents supplied by the app only reference decoded image resources.
         # Never allow QTextBrowser to fetch a remote URL or arbitrary local file.
         return None
 
 
+class PhotoDialog(QDialog):
+    resized = Signal()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
+
+
 class LibraryWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet(STYLE)
         self.settings = QSettings("QZoneCapsule", "ArchiveLibrary")
         self.roots = [Path(p) for p in self.settings.value("roots", [], type=list)]
         self.entries = []
@@ -69,25 +90,50 @@ class LibraryWidget(QWidget):
         box.setContentsMargins(24, 24, 24, 20)
         hero = QFrame()
         hero.setObjectName("spaceHero")
-        hero.setStyleSheet(
-            "QFrame#spaceHero {background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-            "stop:0 #387dc0,stop:1 #78b8dd);border-radius:14px;}"
-            "QFrame#spaceHero QLabel {color:white;background:transparent;}"
-        )
         hero_box = QVBoxLayout(hero)
-        hero_box.setContentsMargins(25, 22, 25, 20)
+        hero_box.setContentsMargins(24, 16, 24, 16)
         hero_box.addWidget(QLabel("QZONE  /  我的离线空间"))
         self.profile_title = QLabel("把每一年的回忆，放回空间里。")
-        self.profile_title.setStyleSheet("font-size:25px;font-weight:700;")
+        self.profile_title.setObjectName("spaceTitle")
+        self.profile_title.setWordWrap(True)
         hero_box.addWidget(self.profile_title)
         hint = QLabel("说说 · 相册 · 照片    全部保存在本地，支持多个账号合并浏览。")
         hint.setWordWrap(True)
         hero_box.addWidget(hint)
         box.addWidget(hero)
+        statistics = QHBoxLayout()
+        statistics.setSpacing(10)
+        self.stat_values = {}
+        for key, title in (
+            ("account", "珍藏账号"),
+            ("album", "相册"),
+            ("photo", "照片 / 视频"),
+            ("mood", "说说"),
+        ):
+            card = QFrame()
+            card.setObjectName("statCard")
+            metric = QVBoxLayout(card)
+            metric.setContentsMargins(16, 10, 16, 10)
+            value = QLabel("0")
+            value.setObjectName("statValue")
+            caption = QLabel(title)
+            caption.setObjectName("muted")
+            metric.addWidget(value)
+            metric.addWidget(caption)
+            self.stat_values[key] = value
+            statistics.addWidget(card, 1)
+        box.addLayout(statistics)
+        filters = QFrame()
+        filters.setObjectName("filters")
+        filter_box = QVBoxLayout(filters)
+        filter_box.setContentsMargins(12, 12, 12, 12)
         row = QHBoxLayout()
         self.account = QComboBox()
-        self.account.addItem("合并查看全部账号", "")
-        self.account.setMinimumWidth(260)
+        self.account.addItem("全部账号", "")
+        self.account.setToolTip("选择一个账号，或合并查看全部账号")
+        self.account.setMinimumWidth(160)
+        self.account.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.account.setMinimumContentsLength(12)
         self.kind = QComboBox()
         for title, value in (("时间线", "timeline"), ("相册", "album"), ("照片", "photo"), ("说说", "mood")):
             self.kind.addItem(title, value)
@@ -98,11 +144,24 @@ class LibraryWidget(QWidget):
         self.mode.addItem("列表与详情", "list")
         self.search = QLineEdit()
         self.search.setPlaceholderText("搜索内容、相册名称或日期")
-        row.addWidget(self.account)
-        row.addWidget(self.kind)
-        row.addWidget(self.year)
-        row.addWidget(self.search, 1)
-        box.addLayout(row)
+        for control, title in (
+            (self.account, "所属账号"),
+            (self.kind, "内容类型"),
+            (self.year, "年份"),
+            (self.mode, "浏览方式"),
+        ):
+            control.setAccessibleName(title)
+        self.search.setAccessibleName("搜索存档内容")
+        self.search.setMinimumWidth(80)
+        row.addWidget(self.account, 1)
+        row.addWidget(self.search, 2)
+        filter_box.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(self.kind, 1)
+        row.addWidget(self.year, 1)
+        row.addWidget(self.mode, 2)
+        filter_box.addLayout(row)
+        box.addWidget(filters)
         row = QHBoxLayout()
         add = QPushButton("添加已有存档")
         add.clicked.connect(self.choose_root)
@@ -118,13 +177,13 @@ class LibraryWidget(QWidget):
         row.addWidget(self.report_button)
         row.addWidget(self.back)
         row.addStretch()
-        row.addWidget(self.mode)
         box.addLayout(row)
         self.summary = QLabel("导出后点击刷新，或添加已有存档文件夹。无需登录也可以查看。")
         self.summary.setWordWrap(True)
         summary_row = QHBoxLayout()
         summary_row.addWidget(self.summary, 1)
         self.all_button = QPushButton("查看全部")
+        self.all_button.setObjectName("primary")
         self.all_button.clicked.connect(self.show_all)
         summary_row.addWidget(self.all_button)
         box.addLayout(summary_row)
@@ -191,10 +250,13 @@ class LibraryWidget(QWidget):
 
     def on_loaded(self, entries, errors):
         self.entries = entries
+        owner = self.window()
+        if hasattr(owner, "update_dashboard"):
+            owner.update_dashboard()
         selected = self.account.currentData()
         self.account.blockSignals(True)
         self.account.clear()
-        self.account.addItem(f"合并查看全部账号 · {len({e['uin'] for e in entries})} 个账号", "")
+        self.account.addItem(f"全部账号 · {len({e['uin'] for e in entries})} 个", "")
         accounts = {e["uin"]: e["owner"] for e in entries}
         for uin, title in sorted(accounts.items()):
             self.account.addItem(title, uin)
@@ -265,8 +327,19 @@ class LibraryWidget(QWidget):
             reverse=True,
         )
         self.profile_title.setText("所有账号的空间" if not uin else self.account.currentText())
-        self.summary.setText(self.summary.text() + f"   ·   当前筛选 {len(self.filtered)} 条，全部可浏览")
+        self.summary.setText(f"当前筛选 {len(self.filtered)} 条 · 全部可浏览")
         self.feed.set_grid(kind in ("photo", "album") and not self.album)
+        self.stat_values["account"].setText(
+            str(len({e["uin"] for e in self.entries if not uin or e["uin"] == uin}))
+        )
+        for key, value in counts.items():
+            self.stat_values[key].setText(str(value))
+        self.feed.empty_text = (
+            "没有找到这些回忆\n试试其他年份或关键词，或点击「查看全部」。"
+            if self.entries
+            else "时光馆还空着\n添加已有存档，随时离线翻看说说与照片。"
+        )
+        self.feed.setUpdatesEnabled(False)
         self.feed.clear()
         for entry in self.filtered:
             item = QListWidgetItem(plain_qq_text(entry.get("content") or entry.get("name") or "未命名"))
@@ -275,6 +348,8 @@ class LibraryWidget(QWidget):
                 emotion_description("\n".join(str(entry.get(k) or "") for k in ("name", "desc", "content")))
             )
             self.feed.addItem(item)
+        self.feed.setUpdatesEnabled(True)
+        self.feed.viewport().update()
         self.list.clear()
         self.detail.setPlainText(
             "选择左侧条目查看内容。双击相册可浏览其中的照片。"
@@ -381,6 +456,9 @@ class LibraryWidget(QWidget):
         browser.setDocument(self.detail.document().clone(browser))
         browser.anchorClicked.connect(self.preview)
         layout.addWidget(browser)
+        close = QPushButton("关闭")
+        close.clicked.connect(dialog.accept)
+        layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
         dialog.exec()
 
     def open_feed_image(self, entry, index):
@@ -404,6 +482,9 @@ class LibraryWidget(QWidget):
         dialog.resize(840, 560)
         layout = QVBoxLayout(dialog)
         failed = sum(i["severity"] == "failed" for i in issues)
+        title = QLabel("归档结果与未完成项")
+        title.setObjectName("cardtitle")
+        layout.addWidget(title)
         layout.addWidget(QLabel(f"下载/读取失败 {failed} 项  ·  视频暂不支持 {len(issues) - failed} 项"))
         browser = LocalBrowser()
         rows = []
@@ -435,6 +516,9 @@ class LibraryWidget(QWidget):
             )
         browser.setHtml("".join(rows) or "<p>未发现未完成项；也可能尚未生成任务报告。</p>")
         layout.addWidget(browser)
+        close = QPushButton("关闭")
+        close.clicked.connect(dialog.accept)
+        layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
         dialog.exec()
 
     @staticmethod
@@ -456,11 +540,16 @@ class LibraryWidget(QWidget):
             path = self.images[int(url.path())]
         except (ValueError, IndexError):
             return
-        dialog = QDialog(self)
-        dialog.setWindowTitle(path.name)
+        dialog = PhotoDialog(self)
+        dialog.setWindowTitle("照片预览 · 本地时光馆")
         dialog.resize(1000, 760)
         layout = QVBoxLayout(dialog)
+        caption = QLabel("照片预览 · 本地时光馆")
+        caption.setObjectName("cardtitle")
+        layout.addWidget(caption)
         scroll = QScrollArea()
+        scroll.setObjectName("photoStage")
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         picture = QLabel()
         picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
         scroll.setWidget(picture)
@@ -472,13 +561,16 @@ class LibraryWidget(QWidget):
         controls.addWidget(previous)
         controls.addWidget(position, 1, Qt.AlignmentFlag.AlignCenter)
         controls.addWidget(following)
+        close = QPushButton("关闭")
+        close.clicked.connect(dialog.accept)
+        controls.addWidget(close)
         layout.addLayout(controls)
         current = [self.images.index(path)]
 
         def show(offset=0):
             current[0] = (current[0] + offset) % len(self.images)
             image = self.read_image(self.images[current[0]], 1600)
-            bounds = QSize(max(300, dialog.width() - 60), max(250, dialog.height() - 110))
+            bounds = QSize(max(300, dialog.width() - 60), max(120, dialog.height() - 150))
             picture.setPixmap(
                 QPixmap.fromImage(image).scaled(
                     bounds, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
@@ -490,6 +582,7 @@ class LibraryWidget(QWidget):
         following.clicked.connect(lambda: show(1))
         QShortcut(QKeySequence("Left"), dialog).activated.connect(lambda: show(-1))
         QShortcut(QKeySequence("Right"), dialog).activated.connect(lambda: show(1))
+        dialog.resized.connect(show)
         show()
         dialog.exec()
 

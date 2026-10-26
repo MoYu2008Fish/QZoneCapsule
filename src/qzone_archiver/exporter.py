@@ -15,6 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .emotions import EMOTIONS
 from .store import Store
 from .text import photo_text_candidate, recover_photo_text
+from .theme import css_variables
 
 
 def export_bundle(
@@ -48,6 +49,7 @@ def export_bundle(
         nickname=nickname or uin,
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         stats=data["stats"],
+        theme_variables=css_variables(),
     )
     index = out_dir / "index.html"
     index.write_text(html, encoding="utf-8")

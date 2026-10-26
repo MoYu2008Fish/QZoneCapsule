@@ -54,3 +54,6 @@ cookies*.txt
 cookies*.json
 qrcode*.png
 data.js
+
+# Private local design reference (not part of the public source distribution)
+/QQ空间备份管理器界面.png

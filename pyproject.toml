@@ -1,6 +1,6 @@
 [project]
 name = "qzonecapsule"
-version = "0.4.0"
+version = "0.5.0"
 description = "QZoneCapsule / 扣扣时光：QQ 空间说说与相册本地归档桌面工具"
 readme = "README.md"
 requires-python = ">=3.10"

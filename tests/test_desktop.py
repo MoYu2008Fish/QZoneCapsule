@@ -291,3 +291,133 @@ def test_feed_detail_dialog_keeps_local_images_and_emoji(window, tmp_path, monke
     monkeypatch.setattr(library_ui.QDialog, "exec", inspect)
     win.library.open_feed_entry(win.library.feed.item(0))
     assert checked
+
+
+def test_narrow_library_controls_remain_inside_window(window):
+    win, app = window
+    win.resize(680, 850)
+    win.show()
+    win.pages.setCurrentIndex(1)
+    app.processEvents()
+    library = win.library
+    for control in (
+        library.account,
+        library.kind,
+        library.year,
+        library.mode,
+        library.search,
+        library.report_button,
+        library.all_button,
+    ):
+        rect = control.rect()
+        assert win.rect().contains(control.mapTo(win, rect.topLeft()))
+        assert win.rect().contains(control.mapTo(win, rect.bottomRight()))
+    assert win.width() == 680
+
+
+def test_photo_viewer_navigation_and_resize_with_synthetic_images(window, tmp_path, monkeypatch):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QColor, QImage
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLabel
+
+    from qzone_archiver import library_ui
+
+    win, app = window
+    library = win.library
+    for name, color in (("demo-blue.png", "#2479bd"), ("demo-white.png", "#ffffff")):
+        image = QImage(600, 400, QImage.Format.Format_RGB32)
+        image.fill(QColor(color))
+        image.save(str(tmp_path / name))
+        library.images.append(tmp_path / name)
+    checked = []
+
+    def inspect(dialog):
+        dialog.show()
+        app.processEvents()
+        picture = next(label for label in dialog.findChildren(QLabel) if not label.pixmap().isNull())
+        before = picture.pixmap().size()
+        QTest.keyClick(dialog, Qt.Key.Key_Right)
+        assert picture.pixmap().toImage().pixelColor(0, 0) == QColor("#ffffff")
+        QTest.keyClick(dialog, Qt.Key.Key_Left)
+        assert picture.pixmap().toImage().pixelColor(0, 0) == QColor("#2479bd")
+        dialog.resize(640, 480)
+        app.processEvents()
+        assert picture.pixmap().height() < before.height()
+        checked.append(True)
+        dialog.close()
+        return 0
+
+    monkeypatch.setattr(library_ui.PhotoDialog, "exec", inspect)
+    library.preview(QUrl("preview:0"))
+    assert checked
+
+
+def test_dashboard_navigation_survives_narrow_window_and_library_return(window, monkeypatch):
+    win, app = window
+    monkeypatch.setattr(win.library, "refresh", lambda: None)
+    win.show()
+    win.resize(1500, 980)
+    app.processEvents()
+    assert win.sidebar.isVisible()
+    assert not win.compact_nav.isVisible()
+    win.navigate("logs")
+    app.processEvents()
+    assert win.log.isVisible()
+    assert win.compact_nav.currentData() == "logs"
+    win.resize(680, 850)
+    app.processEvents()
+    assert not win.sidebar.isVisible()
+    assert win.compact_nav.isVisible()
+    win.compact_nav.activated.emit(win.compact_nav.findData("library"))
+    assert win.pages.currentIndex() == 1
+    win.compact_nav.activated.emit(win.compact_nav.findData("overview"))
+    app.processEvents()
+    assert win.pages.currentIndex() == 0
+    assert win.export_scroll.verticalScrollBar().value() == 0
+    assert win.dashboard.grid.columnCount() >= 1
+    for control in (win.moods, win.albums, win.path, win.start_button, win.open_button):
+        assert control.width() > 0
+        assert control.mapTo(win.dashboard, control.rect().bottomRight()).x() < win.dashboard.width()
+
+
+def test_dashboard_statistics_follow_loaded_local_records(window):
+    win, _ = window
+    entries = [
+        {"kind": "mood", "time": "2026-10-26", "uin": "123"},
+        {"kind": "photo", "time": "2025-02-02", "uin": "123"},
+        {"kind": "album", "time": "2025-01-01", "uin": "123"},
+    ]
+    win.library.entries = entries
+    win.update_dashboard()
+    assert win.content_chart.entries == entries
+    assert [e["kind"] for e in win.timeline_chart.entries] == ["mood", "photo"]
+    win.library.entries = []
+    win.update_dashboard()
+    assert win.content_chart.entries == win.timeline_chart.entries == []
+
+
+def test_sidebar_click_returns_from_library_to_overview(window, monkeypatch):
+    from PySide6.QtTest import QTest
+
+    win, app = window
+    monkeypatch.setattr(win.library, "refresh", lambda: None)
+    win.show()
+    app.processEvents()
+    library_button = next(item for item in win.nav_buttons if item.property("destination") == "library")
+    overview_button = win.nav_buttons[0]
+    QTest.mouseClick(library_button, Qt.MouseButton.LeftButton)
+    app.processEvents()
+    assert win.pages.currentIndex() == 1
+    QTest.mouseClick(overview_button, Qt.MouseButton.LeftButton)
+    app.processEvents()
+    assert win.pages.currentIndex() == 0
+    assert overview_button.isChecked()
+    assert not library_button.isChecked()
+    # macOS accessibility may toggle a checkable button without emitting clicked.
+    library_button.setChecked(True)
+    app.processEvents()
+    assert win.pages.currentIndex() == 1
+    overview_button.setChecked(True)
+    app.processEvents()
+    assert win.pages.currentIndex() == 0

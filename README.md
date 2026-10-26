@@ -6,9 +6,11 @@
 
 一个本地运行的 QQ 空间归档桌面工具：扫码登录，选择说说与相册，导出到电脑，再离线翻看。
 
-> 当前为 **0.4.0 桌面预览版**。已验证 macOS 应用启动、真实登录二维码获取与取消流程，并完成本地相册元数据导出验证；全量图片下载和说说完整性仍待验收。请先用一个小相册测试，不保证历史内容、原图或私有接口始终可用。
+> 当前为 **0.5.0 桌面预览版**。已验证 macOS 应用启动、真实登录二维码获取与取消流程，并完成本地相册元数据导出验证；全量图片下载和说说完整性仍待验收。请先用一个小相册测试，不保证历史内容、原图或私有接口始终可用。
 
 ![扣扣时光桌面界面](docs/images/desktop.png)
+
+0.5.0 更新总览排版、蓝紫配色与应用图标，支持窄窗口导航。[界面更新](docs/ui-refinement-0.5.0.md) · [发布前隐私检查](docs/privacy-audit-0.5.0.md)
 
 ## 可以做什么
 
@@ -26,7 +28,7 @@
 
 ### macOS Apple Silicon
 
-从 [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases) 下载 `QZoneCapsule-0.4.0-macos-arm64.zip`，解压后打开 `QZoneCapsule.app`。
+从 [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases) 下载 `QZoneCapsule-0.5.0-macos-arm64.zip`，解压后打开 `QZoneCapsule.app`。
 
 此预览版只有本地临时签名，**未做 Apple 开发者签名与公证**。如系统拦截，请在确认来源是本仓库后，按 macOS 的正常应用授权流程打开。
 
