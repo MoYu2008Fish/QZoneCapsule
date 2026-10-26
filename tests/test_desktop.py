@@ -170,9 +170,9 @@ def test_in_app_library_account_filter_album_and_local_image(window, tmp_path):
         time.sleep(0.005)
     assert win.pages.currentWidget() is win.library
     library = win.library
-    assert library.list.count() == 4  # two moods + two photos
+    assert library.list.count() == library.feed.count() == 6  # albums are timeline events too
     library.account.setCurrentIndex(library.account.findData("456"))
-    assert library.list.count() == 2
+    assert library.list.count() == 3
     assert all(e["uin"] == "456" for e in library.filtered)
     library.kind.setCurrentIndex(library.kind.findData("album"))
     assert library.list.count() == 1
@@ -208,3 +208,86 @@ def test_export_mode_targets_shared_archive(window, monkeypatch, tmp_path):
     finish(win, app)
     assert captured[0].merge_accounts
     assert captured[0].out.name == "合并存档"
+
+
+def test_all_timeline_entries_and_account_year_filters(window, tmp_path, monkeypatch):
+    win, app = window
+    library = win.library
+    entries = []
+    for uin, year in (("123", "2021"), ("456", "2024")):
+        for i in range(135):
+            entries.append(
+                {
+                    "kind": "mood",
+                    "uin": uin,
+                    "owner": f"演示账号 {uin}",
+                    "root": tmp_path,
+                    "tid": str(i),
+                    "key": (uin, "mood", str(i)),
+                    "time": f"{year}-01-01 12:00:00",
+                    "content": f"回忆 {i}[em]e100[/em]",
+                    "media": [],
+                }
+            )
+    library.on_loaded(entries, [])
+    assert library.feed.count() == library.list.count() == 270
+    assert not library.more.isVisible()
+    assert "270 条" in library.summary.text()
+    library.account.setCurrentIndex(library.account.findData("123"))
+    assert library.feed.count() == 135
+    library.account.setCurrentIndex(0)
+    assert library.feed.count() == 270
+    library.year.setCurrentIndex(library.year.findData("2021"))
+    assert library.feed.count() == 135
+    library.show_all()
+    assert library.feed.count() == 270 and library.year.currentData() == ""
+    library.search.setText("🙂")
+    assert library.feed.count() == 270
+    library.search.clear()
+    monkeypatch.setattr(library, "refresh", lambda: None)
+    win.show()
+    win.pages.setCurrentIndex(1)
+    app.processEvents()
+    # Exercise actual delegate painting and scroll to the final item.
+    library.feed.scrollToBottom()
+    app.processEvents()
+    assert not library.feed.grab().isNull()
+    assert library.feed.visualItemRect(library.feed.item(269)).intersects(library.feed.viewport().rect())
+
+
+def test_feed_detail_dialog_keeps_local_images_and_emoji(window, tmp_path, monkeypatch):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QImage, QTextDocument
+
+    from qzone_archiver import library_ui
+
+    win, _ = window
+    image = QImage(40, 40, QImage.Format.Format_RGB32)
+    image.fill(Qt.GlobalColor.blue)
+    image.save(str(tmp_path / "image.png"))
+    entry = {
+        "kind": "mood",
+        "uin": "123",
+        "owner": "演示账号",
+        "root": tmp_path,
+        "time": "2021-01-01",
+        "content": "你好[em]e100[/em]",
+        "tid": "m",
+        "media": [{"path": "image.png"}],
+    }
+    win.library.on_loaded([entry], [])
+    checked = []
+
+    def inspect(dialog):
+        browser = dialog.findChild(library_ui.LocalBrowser)
+        assert "你好🙂" in browser.toPlainText()
+        resource = browser.document().resource(
+            QTextDocument.ResourceType.ImageResource, QUrl("archive-image:0")
+        )
+        assert isinstance(resource, QImage) and not resource.isNull()
+        checked.append(True)
+        return 0
+
+    monkeypatch.setattr(library_ui.QDialog, "exec", inspect)
+    win.library.open_feed_entry(win.library.feed.item(0))
+    assert checked

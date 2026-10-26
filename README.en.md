@@ -6,7 +6,7 @@
 
 A Python / PySide6 desktop archive tool: scan a QQ login code, select posts and albums, export to your computer, and browse the archive offline.
 
-> **0.3.1 preview:** the macOS application, live QR-code retrieval, and login cancellation have been checked. Local album metadata export has also been checked. Full media download and mood completeness still need acceptance testing. Test a small album first.
+> **0.4.0 preview:** the macOS application, live QR-code retrieval, and login cancellation have been checked. Local album metadata export has also been checked. Full media download and mood completeness still need acceptance testing. Test a small album first.
 
 ![Desktop interface in Chinese](docs/images/desktop.png)
 
@@ -25,7 +25,7 @@ The desktop interface is currently in Chinese.
 
 ## Install
 
-For Apple Silicon Macs, download `QZoneCapsule-0.3.1-macos-arm64.zip` from [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases), extract it and open `QZoneCapsule.app`. The app is locally ad-hoc signed, without Apple Developer ID signing or notarization. Other platforms do not yet have verified binary packages.
+For Apple Silicon Macs, download `QZoneCapsule-0.4.0-macos-arm64.zip` from [Releases](https://github.com/MoYu2008Fish/QZoneCapsule/releases), extract it and open `QZoneCapsule.app`. The app is locally ad-hoc signed, without Apple Developer ID signing or notarization. Other platforms do not yet have verified binary packages.
 
 From source (Python 3.10+ and a system supported by PySide6):
 

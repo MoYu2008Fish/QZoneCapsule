@@ -41,6 +41,16 @@ def test_media_preserves_response_format(tmp_path):
     assert size == 6
 
 
+def test_media_failure_explains_status_without_signed_url(tmp_path):
+    url = "https://media.test/photo?private_signature=example"
+    with respx.mock:
+        respx.get(url).mock(return_value=httpx.Response(403))
+        with MediaDownloader(tmp_path) as downloader, pytest.raises(DownloadError) as error:
+            downloader.download(url, tmp_path / "image.jpg", retries=0)
+    assert "403" in error.value.safe_reason
+    assert "private_signature" not in str(error.value)
+
+
 def test_exif_uses_standard_provenance_tag_and_restores_mtime(tmp_path, monkeypatch):
     import subprocess
     from datetime import datetime

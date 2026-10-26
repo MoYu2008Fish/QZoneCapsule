@@ -100,6 +100,9 @@ def test_video_metadata_is_not_a_download(tmp_path, sources):
     assert result.state == "partial"
     assert result.downloaded == 0
     assert result.issues[0]["kind"] == "video"
+    assert result.failed == 0
+    assert result.unsupported == 1
+    assert result.issues[0]["severity"] == "unsupported"
 
 
 def test_no_sources_rejected(tmp_path):

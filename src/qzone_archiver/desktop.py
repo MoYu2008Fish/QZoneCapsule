@@ -38,41 +38,41 @@ from .library_ui import LibraryWidget
 from .sync import SyncOptions, run_sync
 
 STYLE = """
-QWidget { color: #253a3b; font-size: 14px; }
-QMainWindow, QDialog { background: #f4f6f3; }
-QFrame#sidebar { background: #143e3b; border-radius: 0; }
-QFrame#sidebar QLabel { color: #c1d7cc; background: transparent; }
+QWidget { color: #283b4b; font-size: 14px; }
+QMainWindow, QDialog { background: #edf3f8; }
+QFrame#sidebar { background: #244d70; border-radius: 0; }
+QFrame#sidebar QLabel { color: #bdd8ec; background: transparent; }
 QFrame#sidebar QLabel#brand { color: white; font-size: 27px; font-weight: 700; }
-QLabel#eyebrow { color: #38766a; font-size: 12px; font-weight: 700; }
-QLabel#title { font-size: 28px; font-weight: 700; color: #153e39; }
-QLabel#muted { color: #6d807b; }
-QFrame#card { background: white; border: 1px solid #dfe7df; border-radius: 14px; }
+QLabel#eyebrow { color: #3b85bf; font-size: 12px; font-weight: 700; }
+QLabel#title { font-size: 28px; font-weight: 700; color: #234f72; }
+QLabel#muted { color: #7b8d9c; }
+QFrame#card { background: white; border: 1px solid #dce6ee; border-radius: 14px; }
 QLabel#cardtitle { font-size: 16px; font-weight: 650; }
-QPushButton { background: #edf3ed; border: 1px solid #d8e3d8; border-radius: 8px;
-              padding: 10px 17px; color: #27584c; }
-QPushButton:hover { background: #dfece2; }
+QPushButton { background: #f1f6fb; border: 1px solid #d6e3ed; border-radius: 8px;
+              padding: 10px 17px; color: #35698c; }
+QPushButton:hover { background: #e4f0fa; }
 QPushButton:disabled { color: #97a49c; background: #f0f2ee; border-color: #e5e9e2; }
-QPushButton#primary { background: #246b56; color: white; border: none; font-weight: 650; }
-QPushButton#primary:hover { background: #195542; }
-QPushButton#primary:disabled { background: #a8c0b2; }
-QLineEdit { background: #f8faf7; border: 1px solid #dce5da; border-radius: 7px; padding: 10px; }
-QComboBox { background: #f8faf7; border: 1px solid #dce5da; border-radius: 7px;
+QPushButton#primary { background: #3189cf; color: white; border: none; font-weight: 650; }
+QPushButton#primary:hover { background: #2177b9; }
+QPushButton#primary:disabled { background: #b3cfe3; }
+QLineEdit { background: #fbfdff; border: 1px solid #d9e5ef; border-radius: 7px; padding: 10px; }
+QComboBox { background: #fbfdff; border: 1px solid #d9e5ef; border-radius: 7px;
             padding: 8px 12px; min-height: 18px; }
-QComboBox QAbstractItemView { background: white; selection-background-color: #dcece2;
-                            selection-color: #153e39; }
-QListWidget { background: white; border: 1px solid #dce5da; border-radius: 8px; }
+QComboBox QAbstractItemView { background: white; selection-background-color: #e0effb;
+                            selection-color: #234f72; }
+QListWidget { background: white; border: 1px solid #d9e5ef; border-radius: 8px; }
 QListWidget::item { padding: 10px; border-bottom: 1px solid #edf2ec; }
-QListWidget::item:selected { background: #dcece2; color: #153e39; border-radius: 5px; }
-QTabWidget::pane { border: none; background: #f4f6f3; }
-QTabBar::tab { background: #e8eee6; color: #5c7165; padding: 12px 24px; }
-QTabBar::tab:selected { background: #f4f6f3; color: #195542; font-weight: 650; }
+QListWidget::item:selected { background: #e0effb; color: #234f72; border-radius: 5px; }
+QTabWidget::pane { border: none; background: #edf3f8; }
+QTabBar::tab { background: #e3edf5; color: #6e8aa0; padding: 12px 24px; }
+QTabBar::tab:selected { background: #edf3f8; color: #2177b9; font-weight: 650; }
 QCheckBox { spacing: 9px; padding: 5px 0; }
-QTreeWidget { border: 1px solid #e3e9df; border-radius: 8px; background: #fafcf8; }
+QTreeWidget { border: 1px solid #dce6ee; border-radius: 8px; background: #fbfdff; }
 QTreeWidget::item { padding: 7px 3px; }
-QHeaderView::section { background: #edf3e9; color: #59705e; border: none; padding: 7px; }
-QTextEdit { background: #f7f9f4; border: 1px solid #e0e8da; border-radius: 8px; padding: 8px; }
-QProgressBar { border: none; background: #e6eee0; border-radius: 4px; height: 8px; }
-QProgressBar::chunk { background: #4c8b64; border-radius: 4px; }
+QHeaderView::section { background: #edf4fa; color: #6f8c9f; border: none; padding: 7px; }
+QTextEdit { background: #f5f9fc; border: 1px solid #dce8f0; border-radius: 8px; padding: 8px; }
+QProgressBar { border: none; background: #e6eef5; border-radius: 4px; height: 8px; }
+QProgressBar::chunk { background: #3189cf; border-radius: 4px; }
 """
 
 
@@ -160,9 +160,9 @@ class Window(QMainWindow):
         layout.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(220)
+        sidebar.setFixedWidth(175)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(26, 36, 24, 28)
+        side.setContentsMargins(20, 30, 16, 24)
         side.addWidget(label("扣扣时光", "brand"))
         side.addWidget(label("QZoneCapsule"))
         side.addSpacing(50)
@@ -172,9 +172,7 @@ class Window(QMainWindow):
         side.addSpacing(20)
         side.addWidget(label("03  把回忆带回本地"))
         side.addStretch()
-        side.addWidget(
-            label("说说 · 相册 · 时间\n\n数据保存在你的电脑上。\n每一份回忆，都值得留下。", wrap=True)
-        )
+        side.addWidget(label("说说 · 相册 · 时间\n\n数据保存在本机。\n每段回忆，值得留住。", wrap=True))
         side.addSpacing(20)
         side.addWidget(label(f"桌面预览版  {__version__}"))
         layout.addWidget(sidebar)
@@ -446,6 +444,7 @@ class Window(QMainWindow):
             self.counts.setText(
                 f"相册 {data['albums']}   /   照片 {data['photos']}   /   说说 {data['moods']}"
                 f"   /   下载 {data['downloaded']}   /   跳过 {data['skipped']}   /   失败 {data['failed']}"
+                f"   /   暂不支持 {data.get('unsupported', 0)}"
             )
 
     def on_result(self, result):
@@ -479,7 +478,10 @@ class Window(QMainWindow):
             self.status.setText(
                 {
                     "complete": "导出完成，可以打开本地存档",
-                    "partial": "部分内容未下载，重新导出可补下载",
+                    "partial": (
+                        f"导出结束 · 下载/读取失败 {result.failed} 项 · "
+                        f"视频暂不支持 {result.unsupported} 项；可在时光馆查看条目明细"
+                    ),
                     "cancelled": "已停止，已获取的内容已保存",
                     "error": "读取中断，请检查网络或重新扫码后重试",
                 }[result.state]

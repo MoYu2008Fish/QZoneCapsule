@@ -35,12 +35,14 @@ class SyncOptions:
 @dataclass
 class SyncReport:
     state: str = "complete"
+    uin: str = ""
     albums: int = 0
     photos: int = 0
     moods: int = 0
     downloaded: int = 0
     skipped: int = 0
     failed: int = 0
+    unsupported: int = 0
     issues: list[dict] = field(default_factory=list)
     index: str = ""
 
@@ -60,7 +62,7 @@ def run_sync(
     if not uin.isdigit() or not session.get("cookie"):
         raise ValueError("请先扫码登录")
     out = options.out.expanduser().resolve()
-    report = SyncReport()
+    report = SyncReport(uin=uin)
     cancel = cancel or Event()
 
     def check() -> None:
@@ -72,9 +74,20 @@ def run_sync(
             emit(message, asdict(report))
 
     def issue(kind: str, identity: str, reason: str) -> None:
-        report.failed += 1
-        report.issues.append({"kind": kind, "id": identity, "reason": reason})
-        notify(f"{reason}，已保留记录，可重新导出补下载")
+        unsupported = kind == "video"
+        if unsupported:
+            report.unsupported += 1
+        else:
+            report.failed += 1
+        report.issues.append(
+            {
+                "kind": kind,
+                "id": identity,
+                "reason": reason,
+                "severity": "unsupported" if unsupported else "failed",
+            }
+        )
+        notify(reason + ("；已保留视频元数据" if unsupported else "；已保留记录，可重新导出补下载"))
 
     def photos_for(album_id: str):
         try:
@@ -138,11 +151,15 @@ def run_sync(
                             / (f"{stamp}_{short_hash(photo['sloc'])}.jpg")
                         )
                         success = False
+                        failure_reason = "没有可用图片地址"
                         for url, quality in photo_candidates(photo):
                             check()
                             try:
                                 final, size = downloader.download(url, dest)
-                            except (DownloadError, OSError):
+                            except (DownloadError, OSError) as exc:
+                                failure_reason = (
+                                    exc.safe_reason if isinstance(exc, DownloadError) else "媒体文件无法写入"
+                                )
                                 continue
                             status = apply_time(
                                 final,
@@ -164,7 +181,7 @@ def run_sync(
                             success = True
                             break
                         if not success:
-                            issue("photo", photo["sloc"], "照片下载失败或没有可用地址")
+                            issue("photo", photo["sloc"], f"照片下载失败：{failure_reason}")
                         notify(f"已读取 {report.photos} 张照片")
             if options.moods:
                 notify("正在读取说说…")
@@ -197,8 +214,9 @@ def run_sync(
                                 size,
                             )
                             report.downloaded += 1
-                        except (DownloadError, OSError):
-                            issue("mood_image", f"{tid}:{idx}", "说说配图下载失败")
+                        except (DownloadError, OSError) as exc:
+                            reason = exc.safe_reason if isinstance(exc, DownloadError) else "媒体文件无法写入"
+                            issue("mood_image", f"{tid}:{idx}", f"说说配图下载失败：{reason}")
                     notify(f"已读取 {report.moods} 条说说")
         except (Cancelled, DownloadCancelled):
             report.state = "cancelled"
@@ -210,7 +228,7 @@ def run_sync(
                 report.state = "error"
                 issue("source", "", "内容读取中断，请重新登录后重试；已获取的内容已保存")
         finally:
-            if report.state == "complete" and report.failed:
+            if report.state == "complete" and (report.failed or report.unsupported):
                 report.state = "partial"
             report.index = str(
                 export_bundle(store, uin, out, session.get("nickname", ""), merged=options.merge_accounts)
@@ -225,7 +243,7 @@ def run_sync(
     notify(
         {
             "complete": "导出完成",
-            "partial": "导出结束，部分内容未下载",
+            "partial": f"导出结束 · 下载失败 {report.failed} 项 · 暂不支持 {report.unsupported} 项",
             "cancelled": "已停止，已保存当前进度",
             "error": "导出中断，已保存获取的内容",
         }[report.state]

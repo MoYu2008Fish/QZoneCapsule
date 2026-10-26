@@ -18,7 +18,9 @@ EXIFTOOL = shutil.which("exiftool")
 
 
 class DownloadError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, safe_reason: str = "媒体下载失败"):
+        super().__init__(message)
+        self.safe_reason = safe_reason
 
 
 class DownloadCancelled(RuntimeError):
@@ -65,7 +67,7 @@ class MediaDownloader:
                     resp.raise_for_status()
                     content_type = resp.headers.get("content-type", "")
                     if any(kind in content_type.lower() for kind in ("text/", "json", "xml")):
-                        raise DownloadError("媒体地址返回了网页或错误信息")
+                        raise DownloadError("非媒体响应", safe_reason="媒体地址返回了网页或错误信息")
                     ext = guess_ext(url, content_type, dest.suffix or ".jpg")
                     final = dest.with_suffix(ext)
                     if final.exists() and final.stat().st_size > 0:
@@ -81,9 +83,9 @@ class MediaDownloader:
 
                     expected = resp.headers.get("content-length")
                     if not total:
-                        raise DownloadError("媒体文件为空")
+                        raise DownloadError("空媒体", safe_reason="媒体文件为空")
                     if expected and not resp.headers.get("content-encoding") and int(expected) != total:
-                        raise DownloadError(f"长度不一致：期望 {expected}，实际 {total}")
+                        raise DownloadError("文件长度不一致", safe_reason="媒体传输不完整")
 
                     os.replace(part, final)
                     return final, total
@@ -93,7 +95,19 @@ class MediaDownloader:
                 if isinstance(exc, DownloadCancelled):
                     raise
 
-        raise DownloadError(f"下载失败：{url}（{last_error}）")
+        if isinstance(last_error, httpx.HTTPStatusError):
+            reason = f"媒体服务器返回 HTTP {last_error.response.status_code}"
+        elif isinstance(last_error, httpx.TimeoutException):
+            reason = "媒体请求超时"
+        elif isinstance(last_error, httpx.HTTPError):
+            reason = "媒体网络连接失败"
+        elif isinstance(last_error, OSError):
+            reason = "媒体文件无法写入，请检查目录权限与剩余空间"
+        elif isinstance(last_error, DownloadError):
+            reason = last_error.safe_reason
+        else:
+            reason = "媒体下载失败"
+        raise DownloadError(reason, safe_reason=reason) from None
 
 
 def apply_time(

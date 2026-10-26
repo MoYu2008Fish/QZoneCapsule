@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from .exporter import build_data
@@ -16,8 +18,20 @@ def archive_databases(roots: list[Path]) -> list[Path]:
             root = root.parent
         if not root.is_dir():
             continue
-        candidates = [root / "qzone.db", *root.glob("*/qzone.db")]
-        found.update(path.resolve() for path in candidates if path.is_file())
+        for folder, dirs, files in os.walk(root, followlinks=False):
+            relative = Path(folder).relative_to(root)
+            dirs[:] = (
+                [
+                    d
+                    for d in dirs
+                    if d not in {"media", ".git", ".venv", "node_modules", "build", "__pycache__"}
+                    and not d.startswith(".")
+                ]
+                if len(relative.parts) < 4
+                else []
+            )
+            if "qzone.db" in files:
+                found.add((Path(folder) / "qzone.db").resolve())
     return sorted(found)
 
 
@@ -37,7 +51,7 @@ def read_library(roots: list[Path]) -> tuple[list[dict], list[str]]:
         try:
             with Store(database, readonly=True) as store:
                 for account in store.db.execute("SELECT uin, nickname FROM accounts ORDER BY uin"):
-                    uin = account["uin"]
+                    uin = str(account["uin"])
                     owner = f"{account['nickname']} · QQ {uin}" if account["nickname"] else f"QQ {uin}"
                     data = build_data(store, uin)
                     for kind, items in (
@@ -79,3 +93,36 @@ def read_library(roots: list[Path]) -> tuple[list[dict], list[str]]:
         except Exception:  # noqa: BLE001 - one damaged archive must not hide the others
             errors.append("有一份存档无法读取，请确认文件完整且来自扣扣时光。")
     return list(entries.values()), errors
+
+
+def read_run_issues(roots: list[Path]) -> list[dict]:
+    """Present legacy video 'failures' separately, without changing old reports."""
+    result = []
+    seen = set()
+    for database in archive_databases(roots):
+        try:
+            with Store(database, readonly=True) as store:
+                accounts = [str(row["uin"]) for row in store.db.execute("SELECT uin FROM accounts")]
+            default_uin = accounts[0] if len(accounts) == 1 else ""
+        except Exception:  # noqa: BLE001 - malformed archive is reported by the library loader
+            default_uin = ""
+        reports = [database.parent / "last-run.json", *database.parent.glob("last-run-*.json")]
+        for path in reports:
+            try:
+                data = json.loads(path.read_text())
+                signature = (database.parent, json.dumps(data, sort_keys=True))
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                for issue in data.get("issues", []):
+                    result.append(
+                        {
+                            **issue,
+                            "root": database.parent,
+                            "severity": "unsupported" if issue.get("kind") == "video" else "failed",
+                            "uin": str(data.get("uin") or default_uin),
+                        }
+                    )
+            except (OSError, ValueError, TypeError):
+                continue
+    return result

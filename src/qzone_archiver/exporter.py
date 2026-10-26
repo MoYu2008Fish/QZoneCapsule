@@ -12,6 +12,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .emotions import EMOTIONS
 from .store import Store
 from .text import photo_text_candidate, recover_photo_text
 
@@ -31,6 +32,7 @@ def export_bundle(
     else:
         data = build_data(store, uin)
     data["nickname"] = nickname
+    data["emotions"] = {key: {"name": name, "emoji": emoji} for key, (name, emoji) in EMOTIONS.items()}
 
     # 用 data.js 而不是 data.json：file:// 下 fetch 会被浏览器拦截，script 不会。
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
@@ -115,7 +117,7 @@ def build_data(store: Store, uin: str) -> dict[str, Any]:
             "bytes": row["bytes"] or 0,
         }
         photos.append(item)
-        if row["album_id"] in album_map and item["path"]:
+        if row["album_id"] in album_map:
             album_map[row["album_id"]]["photos"].append(item)
 
     moods = []

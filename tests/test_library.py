@@ -66,3 +66,33 @@ def test_damaged_archive_does_not_hide_valid_archive(tmp_path):
     entries, errors = read_library([tmp_path])
     assert len(entries) == 3
     assert len(errors) == 1
+
+
+def test_nested_accounts_are_discovered_and_media_is_not_scanned(tmp_path):
+    make_archive(tmp_path / "old" / "exports" / "123", "123")
+    make_archive(tmp_path / "current" / "456", "456")
+    make_archive(tmp_path / "media" / "not-an-archive", "789")
+    entries, _ = read_library([tmp_path])
+    assert {e["uin"] for e in entries} == {"123", "456"}
+
+
+def test_legacy_video_issues_are_not_download_failures(tmp_path):
+    import json
+
+    from qzone_archiver.library import read_run_issues
+
+    make_archive(tmp_path / "123", "123")
+    report = {
+        "failed": 3,
+        "issues": [
+            {"kind": "video", "id": "v1", "reason": "视频暂不支持"},
+            {"kind": "video", "id": "v2", "reason": "视频暂不支持"},
+            {"kind": "mood_image", "id": "m:0", "reason": "配图失败"},
+        ],
+    }
+    (tmp_path / "123" / "last-run.json").write_text(json.dumps(report))
+    (tmp_path / "123" / "last-run-123.json").write_text(json.dumps(report))
+    issues = read_run_issues([tmp_path])
+    assert len(issues) == 3  # per-account and latest report must not double-count
+    assert sum(i["severity"] == "failed" for i in issues) == 1
+    assert sum(i["severity"] == "unsupported" for i in issues) == 2
