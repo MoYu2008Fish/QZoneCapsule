@@ -17,6 +17,7 @@ for name in (
     "h11",
     "jinja2",
     "json-repair",
+    "piexif",
     "markupsafe",
     "typer",
     "click",

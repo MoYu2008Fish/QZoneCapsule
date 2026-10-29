@@ -203,7 +203,7 @@ def run_sync(
                         dest = out / "media" / uin / "moods" / f"{short_hash(tid)}_{idx}.jpg"
                         try:
                             final, size = downloader.download(image["url"], dest)
-                            apply_time(final, mood.get("created_at"), None, "upload")
+                            apply_time(final, mood.get("created_at"), None, "mood_created")
                             store.set_mood_media(
                                 uin,
                                 tid,

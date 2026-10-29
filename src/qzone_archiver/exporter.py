@@ -25,6 +25,7 @@ def export_bundle(
     out_dir.mkdir(parents=True, exist_ok=True)
     if merged is None:
         merged = store.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] > 1
+    _backfill_media_times(store, None if merged else uin)
     if merged:
         accounts = list(store.db.execute("SELECT uin, nickname FROM accounts ORDER BY uin"))
         data = combine_data([build_data(store, row["uin"]) for row in accounts])
@@ -54,6 +55,38 @@ def export_bundle(
     index = out_dir / "index.html"
     index.write_text(html, encoding="utf-8")
     return index
+
+
+def _backfill_media_times(store: Store, uin: str | None) -> None:
+    """Repair previously downloaded media as well as new files before export."""
+    from .library import local_media
+    from .media import apply_time
+
+    where = "WHERE p.uin = ?" if uin else ""
+    params = (uin,) if uin else ()
+    rows = list(store.db.execute(
+        f"""SELECT p.*, a.created_at AS album_created FROM photos p
+            LEFT JOIN albums a ON a.uin = p.uin AND a.album_id = p.album_id {where}""", params
+    ))
+    for row in rows:
+        if row["is_video"] or row["exif_status"] in ("written", "preserved"):
+            continue
+        path = local_media(store.path.parent, row["local_path"] or "")
+        if not path:
+            continue
+        source = "shoot" if row["shoot_at"] else "upload" if row["upload_at"] else "album_created"
+        status = apply_time(path, row["shoot_at"], row["upload_at"] or row["album_created"], source)
+        store.set_photo_file(row["uin"], row["album_id"], row["sloc"], row["local_path"], path.stat().st_size, status)
+
+    where = "WHERE m.uin = ?" if uin else ""
+    rows = store.db.execute(
+        f"""SELECT m.local_path, d.created_at FROM mood_media m JOIN moods d
+            ON d.uin = m.uin AND d.tid = m.tid {where}""", params
+    ).fetchall()
+    for row in rows:
+        path = local_media(store.path.parent, row["local_path"] or "")
+        if path:
+            apply_time(path, row["created_at"], None, "mood_created")
 
 
 def combine_data(bundles: list[dict[str, Any]]) -> dict[str, Any]:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import atexit
 from html import escape
 from pathlib import Path
+from typing import ClassVar
 
 from PySide6.QtCore import QSettings, QSize, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QImageReader, QKeySequence, QPixmap, QShortcut, QTextDocument
@@ -34,9 +36,11 @@ from .theme import STYLE, TOKENS
 
 class LibraryLoad(QThread):
     loaded = Signal(object, object)
+    active: ClassVar[set[LibraryLoad]] = set()
 
-    def __init__(self, roots, parent):
-        super().__init__(parent)
+    def __init__(self, roots, parent=None):
+        # Not parented to the widget: a QThread destroyed while running aborts the process.
+        super().__init__()
         self.roots = roots
 
     def run(self):
@@ -45,6 +49,13 @@ class LibraryLoad(QThread):
         except Exception:  # noqa: BLE001 - worker boundary keeps the library usable
             entries, errors = [], ["无法读取所选存档目录，请检查目录权限。"]
         self.loaded.emit(entries, errors)
+
+
+@atexit.register
+def _drain_loaders():
+    for loader in list(LibraryLoad.active):
+        if loader.isRunning():
+            loader.wait()
 
 
 class LocalBrowser(QTextBrowser):
@@ -236,13 +247,15 @@ class LibraryWidget(QWidget):
             self.pending_refresh = True
             return
         self.summary.setText("正在读取本地存档…")
-        self.loader = LibraryLoad(list(self.roots), self)
+        self.loader = LibraryLoad(list(self.roots))
+        LibraryLoad.active.add(self.loader)
         self.loader.loaded.connect(self.on_loaded)
         self.loader.finished.connect(self.load_finished)
         self.loader.start()
 
     def load_finished(self):
         loader, self.loader = self.loader, None
+        LibraryLoad.active.discard(loader)
         loader.deleteLater()
         if self.pending_refresh:
             self.pending_refresh = False

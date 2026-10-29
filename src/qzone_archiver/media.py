@@ -5,11 +5,13 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from threading import Event
 
 import httpx
+import piexif
 
 from .utils import guess_ext
 
@@ -121,7 +123,7 @@ def apply_time(
     返回状态：
     - preserved：原图自带拍摄时间，未覆盖
     - written：用接口时间写入 EXIF
-    - mtime-only：没有 exiftool，只改了文件时间
+    - unsupported：格式需要外部 exiftool，只改了文件时间
     - failed：写入失败
     - skipped：非图片（视频只改 mtime）
     """
@@ -139,7 +141,9 @@ def apply_time(
         return "skipped"
 
     if not EXIFTOOL:
-        return "mtime-only"
+        if path.suffix.lower() in {".jpg", ".jpeg"}:
+            return _write_jpeg_time(path, chosen, time_source, timestamp)
+        return "unsupported"
 
     stamp = chosen.strftime("%Y:%m:%d %H:%M:%S")
     existing = _read_exif_datetime(path)
@@ -178,14 +182,40 @@ def _read_exif_datetime(path: Path) -> str:
     try:
         result = subprocess.run(
             [EXIFTOOL, "-q", "-s3", "-DateTimeOriginal", str(path)],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=20,
+            capture_output=True, check=False, text=True, timeout=20,
         )
         return result.stdout.strip()
     except (subprocess.SubprocessError, OSError):
         return ""
+
+
+def _write_jpeg_time(path: Path, chosen: datetime, source: str, timestamp: float) -> str:
+    """Insert EXIF without recompressing JPEG pixels, replacing the file atomically."""
+    temp = None
+    try:
+        data = piexif.load(str(path))
+        existing = data["Exif"].get(piexif.ExifIFD.DateTimeOriginal, b"")
+        if existing and not existing.startswith(b"0000"):
+            return "preserved"
+        stamp = chosen.strftime("%Y:%m:%d %H:%M:%S").encode("ascii")
+        data["Exif"][piexif.ExifIFD.DateTimeOriginal] = stamp
+        data["Exif"].setdefault(piexif.ExifIFD.DateTimeDigitized, stamp)
+        data["0th"].setdefault(piexif.ImageIFD.DateTime, stamp)
+        data["Exif"].setdefault(
+            piexif.ExifIFD.UserComment, b"ASCII\x00\x00\x00" + f"QZoneCapsule:time_source={source}".encode("ascii")
+        )
+        with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".jpg", delete=False) as fh:
+            temp = Path(fh.name)
+        piexif.insert(piexif.dump(data), str(path), str(temp))
+        os.chmod(temp, path.stat().st_mode)
+        os.utime(temp, (timestamp, timestamp))
+        os.replace(temp, path)
+        return "written"
+    except Exception:  # noqa: BLE001 - Corrupt or unsupported EXIF must not abort an archive export.
+        return "failed"
+    finally:
+        if temp:
+            temp.unlink(missing_ok=True)
 
 
 def _parse(value: str | None) -> datetime | None:

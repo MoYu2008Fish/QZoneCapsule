@@ -17,7 +17,7 @@ Version 0.5.0 refreshes the dashboard layout, blue/purple palette, app icon and 
 - Archive post text, timestamps, locations and images together with album metadata and photos.
 - Select all albums or individual albums; export posts and albums independently.
 - Try original photo URLs first, fall back to other candidates, and record the actual quality source.
-- Preserve available timestamps; optionally fill missing EXIF dates using external ExifTool.
+- Preserve existing EXIF dates and fill missing JPEG dates from available photo, post, or album timestamps; other formats require ExifTool.
 - Run jobs in the background, stop safely between requests, and retry missing files by exporting again.
 - Keep SQLite records, an offline HTML viewer, and a `last-run.json` result report.
 - Browse exported posts, albums and local photos inside the app, with search, account filters and image preview. No login is needed for local browsing.
@@ -63,7 +63,7 @@ Unlike the desktop app, CLI output directories are used directly. Use a separate
 
 ## Limits and privacy
 
-Videos currently retain album metadata only; video source downloads, full comment/reply archiving, byte-level resume, and independent failed-job retries are not implemented. Existing nonempty files are reused without full hash verification. ExifTool is optional and not bundled. Private web APIs may change at any time; inaccessible, deleted or original-quality content is not guaranteed.
+Videos currently retain album metadata only; video source downloads, full comment/reply archiving, byte-level resume, and independent failed-job retries are not implemented. Existing nonempty files are reused without full hash verification. ExifTool is optional and not bundled; it is needed to write EXIF to non-JPEG formats. Private web APIs may change at any time; inaccessible, deleted or original-quality content is not guaranteed.
 
 Requests go directly to Tencent services and media URLs returned by those services. There is no project-hosted proxy, cloud upload or telemetry. Cookies are used for the required Tencent login/content requests. Stored raw responses, media URLs and archives may contain private data. Do not include cookies, QR images, signed URLs or personal archives in issues.
 
