@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -147,10 +147,13 @@ class Window(QMainWindow):
         from collections import Counter
 
         counts = Counter(entry["kind"] for entry in self.library.entries)
-        self.local_accounts.setText(f"珍藏账号     {len({e['uin'] for e in self.library.entries})} 个")
-        self.local_records.setText(f"本地内容     {len(self.library.entries):,} 条")
+        accounts = len({entry["uin"] for entry in self.library.entries})
+        self.local_accounts.setText(f"{accounts} 个")
+        self.local_records.setText(f"{len(self.library.entries):,} 条")
+        self.local_moods.setText(f"{counts['mood']:,} 条")
+        self.local_photos.setText(f"{counts['photo']:,} 张")
         for key, caption in self.selection_counts.items():
-            caption.setText(f"{counts[key]:,} {'条' if key == 'mood' else '个'}已保存")
+            caption.setText(f"{counts[key]:,} {'条' if key == 'mood' else '个'}已存")
         self.content_chart.set_entries(self.library.entries)
         self.timeline_chart.set_entries(
             [entry for entry in self.library.entries if entry["kind"] in {"mood", "photo"}]
@@ -158,15 +161,23 @@ class Window(QMainWindow):
 
     def update_account(self):
         self.account.setText(
-            f"{self.session.get('nickname') or '我的 QQ 空间'} · QQ {self.session['uin']}"
-            if self.session
-            else "尚未连接 QQ 空间"
+            (self.session.get("nickname") or "我的 QQ 空间") if self.session else "尚未连接 QQ 空间"
         )
+        uin = self.session.get("uin") if self.session else ""
+        self.account_id.setText(f"QQ空间ID {uin}" if uin else "QQ空间ID —")
+        self.copy_button.setVisible(bool(uin))
         self.login_button.setText("重新扫码" if self.session else "扫码登录")
         if self.job is None:
             self.status.setText(
                 "准备就绪 · 选择内容后即可开始" if self.session else "准备就绪 · 登录后即可开始"
             )
+
+    def copy_uin(self):
+        if not self.session:
+            return
+        QApplication.clipboard().setText(str(self.session["uin"]))
+        self.copy_button.setText("已复制")
+        QTimer.singleShot(1600, lambda: self.copy_button.setText("复制"))
 
     def update_controls(self, *_):
         busy = self.job is not None
@@ -295,8 +306,10 @@ class Window(QMainWindow):
             ),
         )
         self.task_row.setText(2, "进行中")
+        self.task_row.setForeground(2, QBrush(QColor("#3a6bff")))
         self.task_row.setText(3, "正在读取")
         self.log.clear()
+        self.exported_value.setText("0")
         self.index = None
         self.open_button.setEnabled(True)
         self.launch(Job("sync", dict(self.session), options))
@@ -315,6 +328,7 @@ class Window(QMainWindow):
         if self.qr_dialog and self.qr_dialog.isVisible():
             self.qr_status.setText(text)
         if data:
+            self.exported_value.setText(f"{data['downloaded']:,}")
             self.counts.setText(
                 f"相册 {data['albums']}   /   照片 {data['photos']}   /   说说 {data['moods']}"
                 f"   /   下载 {data['downloaded']}   /   跳过 {data['skipped']}   /   失败 {data['failed']}"
@@ -346,11 +360,25 @@ class Window(QMainWindow):
             self.all_albums.setChecked(False)
             self.status.setText(f"已读取 {len(result)} 个相册，可取消勾选不需要的相册")
         else:
-            self.task_row.setText(
+            labels = {
+                "complete": "已完成",
+                "partial": "部分完成",
+                "cancelled": "已停止",
+                "error": "读取中断",
+            }
+            self.task_row.setText(2, labels[result.state])
+            self.task_row.setForeground(
                 2,
-                {"complete": "已完成", "partial": "部分完成", "cancelled": "已停止", "error": "读取中断"}[
-                    result.state
-                ],
+                QBrush(
+                    QColor(
+                        {
+                            "complete": "#1f9d6b",
+                            "partial": "#d98a1a",
+                            "cancelled": "#8a99ba",
+                            "error": "#e0576f",
+                        }[result.state]
+                    )
+                ),
             )
             self.task_row.setText(3, f"下载 {result.downloaded} / 失败 {result.failed}")
             self.index = Path(result.index)
@@ -372,6 +400,7 @@ class Window(QMainWindow):
     def on_error(self, text):
         if self.job and self.job.kind == "sync":
             self.task_row.setText(2, "已中断")
+            self.task_row.setForeground(2, QBrush(QColor("#e0576f")))
             self.task_row.setText(3, text)
         self.status.setText(text)
         self.log.append(text)
